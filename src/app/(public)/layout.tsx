@@ -1,6 +1,5 @@
-import { TopBar } from "@/components/layout/TopBar";
-import { Header } from "@/components/layout/Header";
-import { Footer } from "@/components/layout/Footer";
+import Header3D from "@/components/layout/Header3D";
+import Footer3D from "@/components/layout/Footer3D";
 
 export default function PublicLayout({
   children,
@@ -8,11 +7,10 @@ export default function PublicLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50/50">
-      <TopBar />
-      <Header />
+    <div className="flex flex-col min-h-screen">
+      <Header3D />
       <main className="flex-1">{children}</main>
-      <Footer />
+      <Footer3D />
     </div>
   );
 }

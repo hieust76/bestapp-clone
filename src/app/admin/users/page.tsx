@@ -1,4 +1,4 @@
-import { Users, ShieldCheck, UserCheck } from "lucide-react";
+import { Users, ShieldCheck, UserCheck, Building2, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatVND } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
@@ -12,23 +12,26 @@ export default async function AdminUsersPage() {
   try {
     users = await prisma.user.findMany({
       include: {
+        printerProfile: true,
         _count: {
-          select: { orders: true },
+          select: { projectsCreated: true },
         },
       },
       orderBy: { createdAt: "desc" },
     });
-  } catch (e) {}
+  } catch (e) {
+    // Fallback
+  }
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-          Quản Lý Người Dùng & Phân Quyền (RBAC)
+          Quản Lý Người Dùng &amp; Đối Tác Xưởng In
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Danh sách khách hàng và quản trị viên trong hệ thống BestApp
+          Danh sách khách hàng, xưởng in và cá nhân có máy in trên hệ thống In3DHub
         </p>
       </div>
 
@@ -38,19 +41,19 @@ export default async function AdminUsersPage() {
           <table className="w-full text-xs text-left text-slate-600">
             <thead className="bg-slate-50 text-slate-700 font-bold uppercase text-[10px] border-b border-slate-100">
               <tr>
-                <th className="p-3">Họ tên & Email</th>
+                <th className="p-3">Họ tên &amp; Email</th>
                 <th className="p-3">Vai trò (Role)</th>
-                <th className="p-3">Số dư ví</th>
-                <th className="p-3">Số đơn đã mua</th>
+                <th className="p-3">Cơ sở / Xưởng in</th>
+                <th className="p-3">Số dự án tạo</th>
                 <th className="p-3">Ngày tham gia</th>
                 <th className="p-3 text-right">Đổi vai trò</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {users.map((u) => (
+              {users.map((u: any) => (
                 <tr key={u.id} className="hover:bg-slate-50/60">
                   <td className="p-3">
-                    <p className="font-bold text-slate-900">{u.name || "Khách hàng"}</p>
+                    <p className="font-bold text-slate-900">{u.name || "Người dùng"}</p>
                     <p className="text-[11px] text-slate-500">{u.email}</p>
                   </td>
                   <td className="p-3">
@@ -58,7 +61,9 @@ export default async function AdminUsersPage() {
                       variant={
                         u.role === "ADMIN"
                           ? "hot"
-                          : u.role === "SUPPORT"
+                          : u.role === "WORKSHOP"
+                          ? "default"
+                          : u.role === "INDIVIDUAL"
                           ? "warning"
                           : "secondary"
                       }
@@ -67,11 +72,20 @@ export default async function AdminUsersPage() {
                       {u.role}
                     </Badge>
                   </td>
-                  <td className="p-3 font-bold text-emerald-600">
-                    {formatVND(u.balance || 0)}
+                  <td className="p-3">
+                    {u.printerProfile ? (
+                      <div>
+                        <p className="font-bold text-slate-900">{u.printerProfile.businessName}</p>
+                        <p className="text-[10px] text-slate-400">
+                          {u.printerProfile.district}, {u.printerProfile.province}
+                        </p>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
                   </td>
                   <td className="p-3 font-semibold text-slate-800">
-                    {u._count?.orders || 0} đơn
+                    {u._count?.projectsCreated || 0} dự án
                   </td>
                   <td className="p-3 text-slate-400">
                     {new Date(u.createdAt).toLocaleDateString("vi-VN")}
@@ -90,8 +104,9 @@ export default async function AdminUsersPage() {
                         defaultValue={u.role}
                         className="h-7 px-2 rounded-lg border border-slate-200 text-[11px] bg-white font-semibold"
                       >
-                        <option value="USER">USER</option>
-                        <option value="SUPPORT">SUPPORT</option>
+                        <option value="CUSTOMER">CUSTOMER</option>
+                        <option value="WORKSHOP">WORKSHOP</option>
+                        <option value="INDIVIDUAL">INDIVIDUAL</option>
                         <option value="ADMIN">ADMIN</option>
                       </select>
                       <button

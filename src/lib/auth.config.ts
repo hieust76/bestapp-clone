@@ -15,17 +15,22 @@ export const authConfig: NextAuthConfig = {
       const userRole = (auth?.user as any)?.role;
 
       const isAdminRoute = nextUrl.pathname.startsWith("/admin");
-      const isAccountProtectedRoute =
-        nextUrl.pathname.startsWith("/account/profile") ||
-        nextUrl.pathname.startsWith("/account/orders");
+      const isCustomerRoute = nextUrl.pathname.startsWith("/customer");
+      const isPrinterRoute = nextUrl.pathname.startsWith("/printer");
 
       if (isAdminRoute) {
         if (!isLoggedIn) return false;
         return userRole === "ADMIN";
       }
 
-      if (isAccountProtectedRoute) {
-        return isLoggedIn;
+      if (isCustomerRoute) {
+        if (!isLoggedIn) return false;
+        return userRole === "CUSTOMER" || userRole === "ADMIN";
+      }
+
+      if (isPrinterRoute) {
+        if (!isLoggedIn) return false;
+        return userRole === "WORKSHOP" || userRole === "INDIVIDUAL" || userRole === "ADMIN";
       }
 
       return true;
@@ -33,7 +38,7 @@ export const authConfig: NextAuthConfig = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role || "USER";
+        token.role = (user as any).role || "CUSTOMER";
         token.name = user.name;
         token.email = user.email;
       }

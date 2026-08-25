@@ -1,5 +1,4 @@
-// Prisma Schema for BestApp Digital Goods E-Commerce Platform
-// Phase 2: Complete Database Schema Design with UUID, Full Relations & Indexes
+// Prisma schema for Two-Sided 3D Printing Marketplace (3D Print Hub)
 
 generator client {
   provider = "prisma-client-js"
@@ -10,99 +9,126 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// -------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // ENUMS
-// -------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 enum Role {
-  USER
-  SUPPORT
-  ADMIN
+  CUSTOMER     // Khách hàng có nhu cầu in 3D
+  WORKSHOP     // Doanh nghiệp / Xưởng in 3D chuyên nghiệp
+  INDIVIDUAL   // Cá nhân có máy in 3D nhận đơn tự do
+  ADMIN        // Quản trị viên hệ thống
+  SUPPORT      // Hỗ trợ viên
 }
 
-enum ProductType {
-  ACCOUNT   // Tài khoản cấp sẵn (Email | Mật khẩu)
-  CODE      // License Key / Key bản quyền kích hoạt
-  UPGRADE   // Nâng cấp trực tiếp trên email/tài khoản khách hàng
+enum PrinterType {
+  FDM          // Fused Deposition Modeling (In sợi nhựa PLA, ABS, PETG, TPU)
+  SLA_RESIN    // Stereolithography (In quang hóa Resin độ chi tiết cao)
+  SLS          // Selective Laser Sintering (In bột laser công nghiệp Nylon)
+  MJF          // Multi Jet Fusion
+  DLP          // Digital Light Processing
 }
 
-enum ProductStatus {
+enum MaterialType {
+  PLA          // Nhựa sinh học tiêu chuẩn
+  ABS          // Nhựa chịu nhiệt, chịu va đập
+  PETG         // Nhựa bền cơ tính, chống ẩm
+  RESIN_STD    // Resin tiêu chuẩn cho mô hình anime/art
+  RESIN_TOUGH  // Resin kỹ thuật chịu lực
+  TPU_FLEX     // Nhựa dẻo đàn hồi cao
+  NYLON_PA12   // Nylon công nghiệp độ bền tối đa
+  CARBON_FIBER // Nhựa gia cường sợi Carbon siêu cứng
+  PEEK         // Nhựa siêu kỹ thuật
+}
+
+enum PrinterStatus {
+  AVAILABLE    // Đang rảnh - sẵn sàng nhận đơn ngay
+  BUSY         // Đang bận chạy máy
+  OFFLINE      // Tạm ngưng nhận đơn
+}
+
+enum ProjectCategory {
+  PROTOTYPE    // Tạo mẫu linh kiện kỹ thuật & cơ khí
+  FIGURE_ANIME // Mô hình nhân vật, tượng, decor
+  ARCHITECTURE // Sa bàn kiến trúc & xây dựng
+  JEWELRY      // Trang sức đúc khuôn & y tế
+  ACCESSORIES  // Phụ kiện gia dụng & cosplay
+  OTHER        // Khác
+}
+
+enum ProjectStatus {
+  DRAFT        // Bản nháp
+  OPEN         // Đang phát thông báo tìm 10 xưởng gần nhất
+  ASSIGNED     // Đã có 1 xưởng/cá nhân nhận đơn
+  CONTRACTED   // Đã chốt hợp đồng & thanh toán giữ tiền (Escrow)
+  PRINTING     // Đang in sản phẩm
+  PRINTED_DONE // Đã in xong, kiểm tra chất lượng (QC)
+  SHIPPING     // Đang gửi hàng qua bưu cục/shipper
+  COMPLETED    // Khách xác nhận nhận hàng, giải ngân tiền
+  CANCELLED    // Huỷ đơn
+}
+
+enum InvitationStatus {
+  PENDING      // Chờ phản hồi từ xưởng
+  ACCEPTED     // Đã nhận đơn thành công
+  EXPIRED      // Quá hạn hoặc xưởng khác đã nhận trước
+  DECLINED     // Từ chối nhận
+}
+
+enum ContractStatus {
   DRAFT
-  ACTIVE
-  OUT_OF_STOCK
+  SENT_TO_CUSTOMER
+  PAID_ESCROW
+  IN_PRODUCTION
+  COMPLETED
+  DISPUTED
 }
 
-enum DeliveryType {
-  AUTO_ACCOUNT   // Tự động xuất user|pass
-  AUTO_KEY       // Tự động xuất license key
-  UPGRADE_LINK   // Tự động gửi link gia nhập family/team
-  MANUAL         // Xử lý thủ công qua CSKH
-}
-
-enum OrderStatus {
-  PENDING        // Đang chờ thanh toán
-  PAID           // Đã thanh toán thành công
-  PROCESSING     // Đang cấp phát hàng tự động
-  DELIVERED      // Đã giao hàng thành công
-  EXPIRED        // Đơn hàng quá hạn thanh toán (sau 30 phút)
-  REFUNDED       // Đã hoàn tiền
-  CANCELLED      // Đã hủy bởi người dùng hoặc admin
-}
-
-enum PaymentMethod {
-  BANK_TRANSFER  // Chuyển khoản ngân hàng quét mã QR SePay 24/7
-  MOMO           // Ví MoMo
-  WALLET         // Số dư ví BestApp
-}
-
-enum PaymentStatus {
+enum EscrowStatus {
   PENDING
-  SUCCESS
-  FAILED
-  REFUNDED
+  HELD_IN_ESCROW
+  RELEASED_TO_PRINTER
+  REFUNDED_TO_CUSTOMER
 }
 
-enum LicenseStatus {
-  AVAILABLE      // Sẵn sàng cấp phát
-  ASSIGNED       // Đã gán cho đơn hàng đang xử lý
-  DELIVERED      // Đã bàn giao cho khách hàng
-  REVOKED        // Bị thu hồi / lỗi
+enum FileType {
+  STL
+  OBJ
+  THREE_MF
+  STEP
+  IMAGE
+  DOCUMENT
 }
 
-enum CouponType {
-  PERCENT        // Giảm theo %
-  FIXED          // Giảm số tiền cố định (VND)
-}
-
-// -------------------------------------------------------------
-// 1. USER & AUTH (Auth.js & RBAC)
-// -------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// USER & AUTHENTICATION
+// -----------------------------------------------------------------------------
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  passwordHash  String?
+  id            String    @id @default(uuid())
+  email         String    @unique
   name          String?
-  role          Role           @default(USER)
-  balance       Int            @default(0) // Số dư ví (VND)
   phone         String?
-  image         String?
-  emailVerified DateTime?
+  avatar        String?
+  passwordHash  String?
+  role          Role      @default(CUSTOMER)
+  balance       Float     @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  // Relations
-  orders        Order[]
-  reviews       Review[]
-  sessions      Session[]
-  accounts      Account[]
-  couponUsages  CouponUsage[]
-  auditLogs     AuditLog[]
-
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  // Quan hệ
+  printerProfile    PrinterProfile?
+  projectsCreated   Project[]            @relation("CustomerProjects")
+  messagesSent      Message[]
+  contractsCustomer Contract[]           @relation("CustomerContracts")
+  reviewsWritten    Review[]             @relation("ReviewAuthor")
+  reviewsReceived   Review[]             @relation("ReviewTarget")
+  notifications     Notification[]
+  accounts          Account[]
+  sessions          Session[]
 
   @@index([email])
   @@index([role])
-  @@map("users")
 }
 
 model Account {
@@ -111,18 +137,17 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-  @@map("accounts")
 }
 
 model Session {
@@ -131,9 +156,6 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("sessions")
 }
 
 model VerificationToken {
@@ -142,394 +164,281 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
-  @@map("verification_tokens")
 }
 
-// -------------------------------------------------------------
-// 2. CATEGORY (With Self-Relation Hierarchy)
-// -------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// WORKSHOP / INDIVIDUAL PRINTER PROFILE (TopCV-style)
+// -----------------------------------------------------------------------------
 
-model Category {
-  id          String     @id @default(uuid())
-  name        String
-  slug        String     @unique
-  description String?    @db.Text
-  parentId    String?
-  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children    Category[] @relation("CategoryHierarchy")
+model PrinterProfile {
+  id                String        @id @default(uuid())
+  userId            String        @unique
+  businessName      String        // Tên xưởng hoặc Tên hiển thị cá nhân
+  bio               String?       // Giới thiệu kinh nghiệm, trang thiết bị
+  avatar            String?
+  coverImage        String?
   
-  image       String?
-  icon        String?
-  sortOrder   Int        @default(0)
-  isFeatured  Boolean    @default(false)
+  // Địa chỉ & Tọa độ để tính khoảng cách
+  address           String        // Số nhà, tên đường
+  district          String        // Quận / Huyện (VD: Quận 1, Cầu Giấy)
+  province          String        // Tỉnh / Thành phố (VD: TP. Hồ Chí Minh, Hà Nội)
+  latitude          Float         @default(10.7769) // Tọa độ vĩ độ
+  longitude         Float         @default(106.7009) // Tọa độ kinh độ
 
-  products    Product[]
+  // Năng lực in 3D
+  printerTypes      PrinterType[] // [FDM, SLA_RESIN, SLS]
+  materials         MaterialType[] // [PLA, ABS, PETG, RESIN_STD, TPU_FLEX]
+  machineCount      Int           @default(1)
+  machineModels     String?       // VD: Bambu Lab X1C, Prusa MK4, Anycubic Photon Mono
+  maxVolumeX        Int           @default(256) // mm
+  maxVolumeY        Int           @default(256) // mm
+  maxVolumeZ        Int           @default(256) // mm
 
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  @@index([slug])
-  @@index([parentId])
-  @@map("categories")
-}
-
-// -------------------------------------------------------------
-// 3. PRODUCT & VARIANTS
-// -------------------------------------------------------------
-
-model Product {
-  id               String          @id @default(uuid())
-  name             String
-  slug             String          @unique
-  shortDescription String?
-  description      String          @db.Text
-  categoryId       String
-  category         Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  // Trạng thái vận hành
+  status            PrinterStatus @default(AVAILABLE)
+  isVerified        Boolean       @default(false)
   
-  type             ProductType     @default(ACCOUNT)
-  status           ProductStatus   @default(ACTIVE)
-  isFeatured       Boolean         @default(false)
-  
-  coverImage       String
-  images           String[]        @default([])
-  badgeText        String?         // e.g. "Bán chạy", "Hot AI", "-60%"
-  
-  warrantyPolicy   String?         @db.Text
-  instructionHtml  String?         @db.Text
+  // Đánh giá & Uy tín
+  rating            Float         @default(5.0)
+  ratingCount       Int           @default(0)
+  completedJobs     Int           @default(0)
+  responseTimeMin   Int           @default(15) // Phút phản hồi trung bình
 
-  rating           Float           @default(5.0)
-  totalSold        Int             @default(0)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
-  variants         ProductVariant[]
-  reviews          Review[]
+  // Quan hệ
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invitations       ProjectInvitation[]
+  assignedProjects  Project[]     @relation("AssignedPrinterProjects")
+  contracts         Contract[]    @relation("PrinterContracts")
 
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-
-  @@index([slug])
-  @@index([categoryId])
+  @@index([province, district])
   @@index([status])
-  @@index([isFeatured])
-  @@map("products")
+  @@index([rating])
 }
 
-model ProductVariant {
-  id           String        @id @default(uuid())
-  productId    String
-  product      Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+// -----------------------------------------------------------------------------
+// 3D PRINTING PROJECT (Yêu cầu in của khách hàng)
+// -----------------------------------------------------------------------------
+
+model Project {
+  id                String          @id @default(uuid())
+  code              String          @unique // VD: PRJ-102938
+  title             String          // VD: In vỏ hộp thiết bị IoT chống nước
+  description       String          // Mô tả chi tiết yêu cầu
+  category          ProjectCategory @default(PROTOTYPE)
+
+  // Thông số kỹ thuật mong muốn
+  desiredMaterial   MaterialType    @default(PLA)
+  desiredColor      String?         // Màu sắc (Trắng, Đen, Xám, Trong suốt...)
+  infillPercent     Int?            @default(20) // Độ đặc (%)
+  layerHeight       Float?          @default(0.2) // Độ mịn lớp in (mm)
+  quantity          Int             @default(1)
+
+  // Ngân sách & Thời hạn
+  targetBudget      Float?          // Ngân sách dự kiến (VND), null = Thương lượng
+  isNegotiable      Boolean         @default(true)
+  deadline          DateTime?       // Thời gian mong muốn hoàn thành
+
+  // Địa chỉ nhận hàng & Tọa độ khách hàng
+  deliveryAddress   String          // Địa chỉ giao hàng
+  district          String          // Quận / Huyện
+  province          String          // Tỉnh / Thành phố
+  latitude          Float           @default(10.7769)
+  longitude         Float           @default(106.7009)
+
+  status            ProjectStatus   @default(OPEN)
   
-  name         String        // e.g., "1 Tháng", "1 Năm", "Chính chủ mail cá nhân"
-  price        Int           // Giá niêm yết (VND)
-  salePrice    Int?          // Giá khuyến mãi (VND)
-  stock        Int           @default(100)
-  deliveryType DeliveryType  @default(AUTO_ACCOUNT)
-  durationDays Int?          @default(30)
-  sku          String?       @unique
-  isActive     Boolean       @default(true)
-  sortOrder    Int           @default(0)
-
-  licenses     License[]
-  orderItems   OrderItem[]
-  flashSales   FlashSale[]
-
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-
-  @@index([productId])
-  @@index([isActive])
-  @@map("product_variants")
-}
-
-// -------------------------------------------------------------
-// 4. DIGITAL LICENSE & ACCOUNT INVENTORY
-// -------------------------------------------------------------
-
-model License {
-  id                    String          @id @default(uuid())
-  variantId             String
-  variant               ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
-
-  codeEncrypted         String          @db.Text // Nội dung bảo mật: Key hoặc User|Pass hoặc Link
-  status                LicenseStatus   @default(AVAILABLE)
+  // Quan hệ khách hàng & xưởng nhận
+  customerId        String
+  customer          User            @relation("CustomerProjects", fields: [customerId], references: [id], onDelete: Cascade)
   
-  assignedToOrderItemId String?
-  assignedToOrderItem   OrderItem?      @relation(fields: [assignedToOrderItemId], references: [id], onDelete: SetNull)
+  assignedPrinterId String?
+  assignedPrinter   PrinterProfile? @relation("AssignedPrinterProjects", fields: [assignedPrinterId], references: [id])
+  
+  assignedAt        DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
-  deliveredAt           DateTime?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-
-  @@index([variantId, status])
-  @@index([assignedToOrderItemId])
-  @@map("licenses")
-}
-
-// -------------------------------------------------------------
-// 5. ORDER & ORDER ITEMS
-// -------------------------------------------------------------
-
-model Order {
-  id             String         @id @default(uuid())
-  code           String         @unique // e.g. "BEST109283"
-  userId         String?
-  user           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  email          String         // Email nhận hàng (Bắt buộc với cả Guest Checkout)
-  customerName   String?
-  customerPhone  String?
-
-  status         OrderStatus    @default(PENDING)
-  totalAmount    Int            // Tổng tiền chưa giảm
-  discountAmount Int            @default(0)
-  finalAmount    Int            // Số tiền cần thanh toán
-
-  paymentRef     String         @unique // Mã nội dung chuyển khoản SePay
-  expiresAt      DateTime       // Thời điểm hết hạn (now + 30m)
-  paidAt         DateTime?
-  notes          String?
-
-  items          OrderItem[]
-  payments       Payment[]
-  couponUsages   CouponUsage[]
-
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  // Danh sách các thực thể liên quan
+  files             ProjectFile[]
+  invitations       ProjectInvitation[]
+  conversations     Conversation[]
+  contract          Contract?
+  review            Review?
 
   @@index([code])
-  @@index([email])
   @@index([status])
+  @@index([customerId])
+  @@index([assignedPrinterId])
+  @@index([province, district])
+}
+
+// -----------------------------------------------------------------------------
+// PROJECT FILES (Model 3D STL/OBJ & Hình ảnh mẫu)
+// -----------------------------------------------------------------------------
+
+model ProjectFile {
+  id          String   @id @default(uuid())
+  projectId   String
+  fileName    String   // VD: gear_bracket_v2.stl
+  fileUrl     String   // Đường dẫn tải file (R2/S3/Uploadthing)
+  fileSize    Int?     // Bytes
+  fileType    FileType @default(STL)
+  createdAt   DateTime @default(now())
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+// -----------------------------------------------------------------------------
+// PROJECT INVITATION (Phát đơn cho 10 bên gần nhất)
+// -----------------------------------------------------------------------------
+
+model ProjectInvitation {
+  id               String           @id @default(uuid())
+  projectId        String
+  printerProfileId String
+  distanceKm       Float            // Khoảng cách từ khách đến xưởng (km)
+  status           InvitationStatus @default(PENDING)
+  sentAt           DateTime         @default(now())
+  respondedAt      DateTime?
+
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  printerProfile   PrinterProfile   @relation(fields: [printerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, printerProfileId])
+  @@index([status])
+  @@index([printerProfileId])
+}
+
+// -----------------------------------------------------------------------------
+// CHAT & MESSAGING (Customer ↔ Workshop/Individual)
+// -----------------------------------------------------------------------------
+
+model Conversation {
+  id          String    @id @default(uuid())
+  projectId   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages    Message[]
+
+  @@index([projectId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  attachmentUrl  String?
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([senderId])
+}
+
+// -----------------------------------------------------------------------------
+// E-CONTRACT & ESCROW PAYMENT (Hợp đồng điện tử & Ký gửi thanh toán)
+// -----------------------------------------------------------------------------
+
+model Contract {
+  id               String         @id @default(uuid())
+  contractCode     String         @unique // VD: HD-849201
+  projectId        String         @unique
+  customerId       String
+  printerProfileId String
+
+  // Điều khoản & Chi phí
+  finalPrice       Float          // Tổng giá trị in (VND)
+  depositAmount    Float          // Tiền cọc/escrow giữ
+  platformFee      Float          @default(0) // Phí nền tảng (VD: 5%)
+  netPrinterAmount Float          // Tiền thực nhận của xưởng
+  estimatedDays    Int            @default(2) // Số ngày in dự kiến
+  materialUsed     String         // Vật liệu cam kết sử dụng
+  qualityNotes     String?        // Yêu cầu xử lý bề mặt, bảo hành
+  terms            String?        // Điều khoản hợp đồng chuẩn
+
+  status           ContractStatus @default(DRAFT)
+  createdAt        DateTime       @default(now())
+  signedAt         DateTime?
+  completedAt      DateTime?
+
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  customer         User           @relation("CustomerContracts", fields: [customerId], references: [id])
+  printerProfile   PrinterProfile @relation("PrinterContracts", fields: [printerProfileId], references: [id])
+  escrow           EscrowTransaction?
+
+  @@index([contractCode])
+  @@index([status])
+}
+
+model EscrowTransaction {
+  id              String       @id @default(uuid())
+  contractId      String       @unique
+  amount          Float
+  status          EscrowStatus @default(PENDING)
+  paymentMethod   String       @default("VIETQR_BANK_TRANSFER")
+  paymentRef      String       @unique // Mã chuyển khoản SePay/VietQR
+  paidAt          DateTime?
+  releasedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  contract        Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
   @@index([paymentRef])
-  @@index([expiresAt])
-  @@map("orders")
-}
-
-enum ItemDeliveryStatus {
-  PENDING
-  DELIVERED
-  FAILED
-}
-
-model OrderItem {
-  id              String             @id @default(uuid())
-  orderId         String
-  order           Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  variantId       String
-  variant         ProductVariant     @relation(fields: [variantId], references: [id], onDelete: Restrict)
-
-  quantity        Int                @default(1)
-  unitPrice       Int                // Giá đơn vị tại thời điểm mua
-  productSnapshot Json               // Snapshot thông tin sản phẩm: { name, variantName, coverImage, deliveryType, durationDays }
-
-  deliveryStatus  ItemDeliveryStatus @default(PENDING)
-  deliveryData    String?            @db.Text
-
-  licenses        License[]
-
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-
-  @@index([orderId])
-  @@index([variantId])
-  @@map("order_items")
-}
-
-// -------------------------------------------------------------
-// 6. PAYMENT & SEPAY WEBHOOK EVENTS (Idempotency)
-// -------------------------------------------------------------
-
-model Payment {
-  id          String         @id @default(uuid())
-  orderId     String
-  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  amount      Int
-  method      PaymentMethod  @default(BANK_TRANSFER)
-  status      PaymentStatus  @default(PENDING)
-  
-  gatewayTxId String?        // ID giao dịch ngân hàng / SePay
-  rawPayload  Json?          // Dữ liệu thô từ Webhook
-  paidAt      DateTime?
-
-  events      PaymentEvent[]
-
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
-  @@index([orderId])
   @@index([status])
-  @@index([gatewayTxId])
-  @@map("payments")
 }
 
-model PaymentEvent {
-  id             String   @id @default(uuid())
-  paymentId      String
-  payment        Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-
-  eventType      String   // "sepay.transaction.created" / "sepay.webhook"
-  idempotencyKey String   @unique // Đảm bảo không xử lý webhook trùng lặp
-  payload        Json
-  processedAt    DateTime @default(now())
-
-  @@index([idempotencyKey])
-  @@index([paymentId])
-  @@map("payment_events")
-}
-
-// -------------------------------------------------------------
-// 7. COUPON & PROMOTIONS
-// -------------------------------------------------------------
-
-model Coupon {
-  id          String        @id @default(uuid())
-  code        String        @unique // e.g. "BESTAPP50", "WELCOME"
-  description String?
-  type        CouponType    @default(PERCENT)
-  value       Int           // 10 = 10% hoặc 50000 = 50.000đ
-  minOrder    Int           @default(0)
-  maxDiscount Int?          // Số tiền giảm tối đa nếu là PERCENT
-  maxUsage    Int           @default(100)
-  usedCount   Int           @default(0)
-  startsAt    DateTime      @default(now())
-  expiresAt   DateTime?
-  isActive    Boolean       @default(true)
-
-  usages      CouponUsage[]
-
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  @@index([code])
-  @@index([isActive])
-  @@map("coupons")
-}
-
-model CouponUsage {
-  id             String   @id @default(uuid())
-  couponId       String
-  coupon         Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
-  orderId        String
-  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  userId         String?
-  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
-  discountAmount Int
-  usedAt         DateTime @default(now())
-
-  @@index([couponId])
-  @@index([orderId])
-  @@index([userId])
-  @@map("coupon_usages")
-}
-
-// -------------------------------------------------------------
-// 8. FLASH SALE
-// -------------------------------------------------------------
-
-model FlashSale {
-  id        String         @id @default(uuid())
-  variantId String
-  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
-
-  salePrice Int            // Giá bán Flash sale
-  stock     Int            @default(50)
-  soldCount Int            @default(0)
-  startsAt  DateTime       @default(now())
-  endsAt    DateTime
-  isActive  Boolean        @default(true)
-
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-
-  @@index([variantId])
-  @@index([startsAt, endsAt])
-  @@map("flash_sales")
-}
-
-// -------------------------------------------------------------
-// 9. REVIEWS & RATINGS
-// -------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// REVIEWS & REPUTATION
+// -----------------------------------------------------------------------------
 
 model Review {
-  id         String   @id @default(uuid())
-  productId  String
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id          String   @id @default(uuid())
+  projectId   String   @unique
+  authorId    String   // Khách hàng đánh giá
+  targetId    String   // User của Xưởng/Cá nhân nhận đánh giá
+  rating      Int      @default(5) // 1 - 5 sao
+  content     String?
+  accuracy    Int?     @default(5) // Độ chính xác kích thước
+  finishScore Int?     @default(5) // Độ mịn bề mặt
+  images      String[]
+  createdAt   DateTime @default(now())
 
-  authorName String
-  rating     Int      @default(5)
-  comment    String   @db.Text
-  isApproved Boolean  @default(true)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author      User     @relation("ReviewAuthor", fields: [authorId], references: [id])
+  target      User     @relation("ReviewTarget", fields: [targetId], references: [id])
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([productId])
-  @@index([isApproved])
-  @@map("reviews")
+  @@index([targetId])
+  @@index([rating])
 }
 
-// -------------------------------------------------------------
-// 10. BLOG & SEO (Posts & Topics)
-// -------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// NOTIFICATIONS
+// -----------------------------------------------------------------------------
 
-model BlogTopic {
-  id          String     @id @default(uuid())
-  name        String
-  slug        String     @unique
-  description String?
-  posts       BlogPost[]
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  content   String
+  link      String?
+  isRead    Boolean  @default(false)
+  type      String   @default("INFO")
+  createdAt DateTime @default(now())
 
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([slug])
-  @@map("blog_topics")
-}
-
-model BlogPost {
-  id          String     @id @default(uuid())
-  title       String
-  slug        String     @unique
-  content     String     @db.Text
-  excerpt     String?
-  coverImage  String?
-  topicId     String
-  topic       BlogTopic  @relation(fields: [topicId], references: [id], onDelete: Restrict)
-  authorName  String?    @default("BestApp Team")
-  isPublished Boolean    @default(true)
-  publishedAt DateTime?
-
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  @@index([slug])
-  @@index([topicId])
-  @@index([isPublished])
-  @@map("blog_posts")
-}
-
-// -------------------------------------------------------------
-// 11. AUDIT LOG (Security & Admin Operations)
-// -------------------------------------------------------------
-
-model AuditLog {
-  id         String   @id @default(uuid())
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  action     String   // e.g. "PRODUCT_CREATE", "STOCK_IMPORT", "ORDER_REFUND"
-  entityType String   // "PRODUCT", "ORDER", "LICENSE", "USER"
-  entityId   String?
-  metadata   Json?
-  ipAddress  String?
-
-  createdAt  DateTime @default(now())
-
-  @@index([userId])
-  @@index([action])
-  @@index([entityType])
-  @@map("audit_logs")
+  @@index([userId, isRead])
 }

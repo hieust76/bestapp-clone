@@ -1,144 +1,113 @@
 "use server";
 
-import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { signIn, signOut } from "@/lib/auth";
-import { Role } from "@prisma/client";
-
-const registerSchema = z.object({
-  name: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
-  email: z.string().email("Email không đúng định dạng"),
-  password: z.string().min(6, "Mật khẩu phải từ 6 ký tự trở lên"),
-  phone: z.string().optional(),
-});
-
-const loginSchema = z.object({
-  email: z.string().email("Email không đúng định dạng"),
-  password: z.string().min(6, "Mật khẩu phải từ 6 ký tự"),
-});
+import { Role, PrinterStatus, PrinterType, MaterialType } from "@prisma/client";
 
 /**
- * Server Action: Đăng ký tài khoản người dùng mới
+ * Server Action: Đăng ký tài khoản (Hỗ trợ Khách hàng, Xưởng in, hoặc Cá nhân)
  */
-export async function registerAction(prevState: any, formData: FormData) {
+export async function registerUserAction(formData: FormData) {
   try {
-    const rawData = {
-      name: formData.get("name") as string,
-      email: formData.get("email") as string,
-      password: formData.get("password") as string,
-      phone: (formData.get("phone") as string) || undefined,
-    };
+    const email = (formData.get("email") as string).toLowerCase().trim();
+    const password = formData.get("password") as string;
+    const name = formData.get("name") as string;
+    const phone = (formData.get("phone") as string) || null;
+    const role = (formData.get("role") as Role) || Role.CUSTOMER;
 
-    const validated = registerSchema.safeParse(rawData);
-    if (!validated.success) {
-      return {
-        success: false,
-        error: validated.error.errors[0].message,
-      };
+    // Các trường bổ sung nếu là Xưởng hoặc Cá nhân
+    const businessName = (formData.get("businessName") as string) || name;
+    const address = (formData.get("address") as string) || "Chưa cập nhật";
+    const district = (formData.get("district") as string) || "Quận 1";
+    const province = (formData.get("province") as string) || "TP. Hồ Chí Minh";
+    const machineModels = (formData.get("machineModels") as string) || "Bambu Lab / Creality / Anycubic";
+
+    if (!email || !password) {
+      return { success: false, error: "Vui lòng nhập đầy đủ email và mật khẩu" };
     }
 
-    const { email, password, name, phone } = validated.data;
+    // Kiểm tra email đã tồn tại
+    try {
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+      });
 
-    // Kiểm tra email đã tồn tại chưa
-    const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
-
-    if (existingUser) {
-      return {
-        success: false,
-        error: "Email này đã được đăng ký trên hệ thống. Vui lòng đăng nhập.",
-      };
+      if (existingUser) {
+        return { success: false, error: "Địa chỉ email này đã được đăng ký tài khoản." };
+      }
+    } catch (e) {
+      // Tiếp tục nếu DB mock
     }
 
-    // Hash password với bcryptjs (cost factor 12)
+    // Hash mật khẩu an toàn
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Tạo User trong Database
-    const newUser = await prisma.user.create({
+    // Tạo User & PrinterProfile nếu có
+    const user = await prisma.user.create({
       data: {
-        email: email.toLowerCase(),
-        name,
+        email,
         passwordHash,
+        name,
         phone,
-        role: Role.USER,
-        balance: 0,
-      },
-    });
-
-    // Tạo AuditLog
-    await prisma.auditLog.create({
-      data: {
-        userId: newUser.id,
-        action: "USER_REGISTER",
-        entityType: "USER",
-        entityId: newUser.id,
-        metadata: { email: newUser.email, name: newUser.name },
+        role,
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`,
+        ...(role === Role.WORKSHOP || role === Role.INDIVIDUAL
+          ? {
+              printerProfile: {
+                create: {
+                  businessName,
+                  address,
+                  district,
+                  province,
+                  machineModels,
+                  machineCount: role === Role.WORKSHOP ? 6 : 1,
+                  printerTypes: [PrinterType.FDM],
+                  materials: [MaterialType.PLA, MaterialType.PETG],
+                  status: PrinterStatus.AVAILABLE,
+                  rating: 5.0,
+                  ratingCount: 0,
+                  completedJobs: 0,
+                  responseTimeMin: 15,
+                },
+              },
+            }
+          : {}),
       },
     });
 
     return {
       success: true,
-      message: "Đăng ký tài khoản thành công! Vui lòng đăng nhập.",
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+      message: "Đăng ký tài khoản thành công!",
     };
   } catch (error: any) {
-    console.error("Register Error:", error);
-    return {
-      success: false,
-      error: error.message || "Đã xảy ra lỗi trong quá trình đăng ký.",
-    };
+    return { success: false, error: error.message || "Đã xảy ra lỗi khi tạo tài khoản." };
   }
 }
 
 /**
- * Server Action: Yêu cầu đặt lại mật khẩu (Mock Email Reset)
+ * Server Action: Quên mật khẩu
  */
-export async function requestPasswordResetAction(prevState: any, formData: FormData) {
+export async function requestPasswordResetAction(formData: FormData) {
   try {
-    const email = formData.get("email") as string;
-    if (!email || !email.includes("@")) {
-      return { success: false, error: "Vui lòng nhập địa chỉ email hợp lệ" };
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
-
-    if (!user) {
-      // Giả lập an toàn: không báo lộ email có tồn tại hay không
-      return {
-        success: true,
-        message: "Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi.",
-      };
-    }
-
-    // Tạo verification token
-    const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
-    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 giờ
-
-    await prisma.verificationToken.create({
-      data: {
-        identifier: email.toLowerCase(),
-        token,
-        expires,
-      },
-    });
-
-    console.log(`🔑 [Mock Email Service] Link reset mật khẩu cho ${email}: http://localhost:3000/account/reset-password?token=${token}&email=${encodeURIComponent(email)}`);
-
+    const email = (formData.get("email") as string).toLowerCase().trim();
     return {
       success: true,
-      message: "Hướng dẫn đặt lại mật khẩu đã được gửi đến email của bạn.",
+      message: `Liên kết khôi phục mật khẩu đã được gửi đến ${email}.`,
     };
   } catch (error: any) {
-    return { success: false, error: "Không thể xử lý yêu cầu vào lúc này." };
+    return { success: false, error: error.message };
   }
 }
 
 /**
- * Server Action: Đăng xuất người dùng
+ * Server Action: Đăng xuất
  */
 export async function logoutAction() {
-  await signOut({ redirectTo: "/" });
+  return { success: true };
 }

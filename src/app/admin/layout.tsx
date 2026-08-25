@@ -1,12 +1,11 @@
 import Link from "next/link";
 import {
   LayoutDashboard,
-  Package,
-  Key,
-  ShoppingCart,
+  Printer,
+  Building2,
+  FileCode,
   Users,
-  TicketPercent,
-  Layers,
+  Lock,
   ArrowLeft,
   ShieldCheck,
 } from "lucide-react";
@@ -23,11 +22,11 @@ export default function AdminLayout({
         <div className="p-5 border-b border-slate-800 flex items-center justify-between">
           <Link href="/admin" className="flex items-center space-x-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-base shadow-md shadow-blue-500/20">
-              B
+              <Printer className="w-5 h-5" />
             </div>
             <div>
               <span className="font-extrabold text-white text-base tracking-tight block">
-                BestApp CMS
+                In3DHub CMS
               </span>
               <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">
                 Admin Control
@@ -45,39 +44,18 @@ export default function AdminLayout({
             <span>Tổng quan Dashboard</span>
           </Link>
           <Link
-            href="/admin/products"
+            href="/printers"
             className="flex items-center space-x-2.5 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
           >
-            <Package className="w-4 h-4 text-purple-400" />
-            <span>Sản phẩm & Gói</span>
+            <Building2 className="w-4 h-4 text-purple-400" />
+            <span>Danh bạ Xưởng in</span>
           </Link>
           <Link
-            href="/admin/orders"
+            href="/printer/available-jobs"
             className="flex items-center space-x-2.5 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
           >
-            <ShoppingCart className="w-4 h-4 text-emerald-400" />
-            <span>Đơn hàng & SePay</span>
-          </Link>
-          <Link
-            href="/admin/licenses"
-            className="flex items-center space-x-2.5 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          >
-            <Key className="w-4 h-4 text-amber-400" />
-            <span>Kho License & Acc</span>
-          </Link>
-          <Link
-            href="/admin/categories"
-            className="flex items-center space-x-2.5 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          >
-            <Layers className="w-4 h-4 text-sky-400" />
-            <span>Danh mục sản phẩm</span>
-          </Link>
-          <Link
-            href="/admin/coupons"
-            className="flex items-center space-x-2.5 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          >
-            <TicketPercent className="w-4 h-4 text-rose-400" />
-            <span>Mã giảm giá (Coupon)</span>
+            <FileCode className="w-4 h-4 text-amber-400" />
+            <span>Feed Đơn Cần In</span>
           </Link>
           <Link
             href="/admin/users"
@@ -98,7 +76,7 @@ export default function AdminLayout({
             className="flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-white pt-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Về trang mua sắm</span>
+            <span>Về sàn giao dịch</span>
           </Link>
         </div>
       </aside>
