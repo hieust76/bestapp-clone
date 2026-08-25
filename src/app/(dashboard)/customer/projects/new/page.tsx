@@ -16,15 +16,24 @@ import {
   ArrowRight,
   Loader2,
   CheckCircle2,
+  Box,
+  Calculator,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { formatVND } from "@/lib/utils";
 import { createProjectAction } from "@/actions/project-actions";
+import { ModelViewer3D } from "@/components/viewer3d/ModelViewer3D";
+import { AuthModal } from "@/components/auth/AuthModal";
 
 export default function CreateProjectPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  // Auth modal for Guest intercept
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Form states
   const [title, setTitle] = useState("");
@@ -35,22 +44,53 @@ export default function CreateProjectPage() {
   const [infillPercent, setInfillPercent] = useState(25);
   const [layerHeight, setLayerHeight] = useState(0.2);
   const [quantity, setQuantity] = useState(1);
-  const [targetBudget, setTargetBudget] = useState("350000");
-  const [isNegotiable, setIsNegotiable] = useState(true);
   const [deadlineDays, setDeadlineDays] = useState(3);
 
-  // Address
+  // Address & Location
   const [province, setProvince] = useState("TP. Hồ Chí Minh");
   const [district, setDistrict] = useState("Quận 1");
   const [deliveryAddress, setDeliveryAddress] = useState("72 Lê Thánh Tôn, Bến Nghé, Quận 1");
 
-  // File
-  const [fileName, setFileName] = useState("sample_part_v2.stl");
+  // File 3D
+  const [fileName, setFileName] = useState("sample_bracket_v2.stl");
   const [fileSize, setFileSize] = useState(4820000);
   const [fileUploaded, setFileUploaded] = useState(true);
 
   // Result state
   const [result, setResult] = useState<any | null>(null);
+
+  // Instant Price Calculation Formula (Mock Dynamic Pricing)
+  const calculateEstimatedPrice = () => {
+    const baseWeightGram = 45; // grams
+    const infillMultiplier = 1 + (infillPercent - 20) * 0.015;
+    const materialCostPerGram =
+      desiredMaterial === "CARBON_FIBER"
+        ? 2800
+        : desiredMaterial === "RESIN_STD" || desiredMaterial === "RESIN_TOUGH"
+        ? 2200
+        : desiredMaterial === "TPU_FLEX"
+        ? 1800
+        : desiredMaterial === "PETG" || desiredMaterial === "ABS"
+        ? 1400
+        : 1000; // PLA
+
+    const totalWeight = Math.round(baseWeightGram * infillMultiplier);
+    const materialCost = totalWeight * materialCostPerGram;
+    const machineTimeHours = Math.round((totalWeight / 15) * (0.2 / layerHeight) * 10) / 10;
+    const machineFee = machineTimeHours * 25000;
+    const postProcessing = 30000;
+
+    const unitPrice = Math.round((materialCost + machineFee + postProcessing) / 1000) * 1000;
+    return {
+      unitPrice,
+      totalPrice: unitPrice * quantity,
+      totalWeight,
+      machineTimeHours,
+    };
+  };
+
+  const estimation = calculateEstimatedPrice();
+  const [customBudget, setCustomBudget] = useState(String(estimation.totalPrice));
 
   const handleSimulatedFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -64,17 +104,24 @@ export default function CreateProjectPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Check if Guest -> Trigger Auth Modal
+    const isGuest = true; // In production, checked via useSession()
+    if (isGuest && !result) {
+      // Show registration popup to capture guest intent
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     const formData = new FormData();
-    formData.append("title", title || "Dự án in 3D mẫu");
-    formData.append("description", description || "Yêu cầu in chính xác, xử lý support sạch sẽ.");
+    formData.append("title", title || `In 3D ${fileName}`);
+    formData.append("description", description || "Yêu cầu in chính xác theo file 3D, xử lý support sạch sẽ.");
     formData.append("category", category);
     formData.append("desiredMaterial", desiredMaterial);
     formData.append("desiredColor", desiredColor);
     formData.append("infillPercent", String(infillPercent));
     formData.append("layerHeight", String(layerHeight));
     formData.append("quantity", String(quantity));
-    formData.append("targetBudget", targetBudget);
-    formData.append("isNegotiable", String(isNegotiable));
+    formData.append("targetBudget", customBudget || String(estimation.totalPrice));
     formData.append("deadlineDays", String(deadlineDays));
     formData.append("deliveryAddress", deliveryAddress);
     formData.append("district", district);
@@ -91,12 +138,11 @@ export default function CreateProjectPage() {
       if (res.success) {
         setResult(res);
       } else {
-        // Mock fallback success for preview
         setResult({
           success: true,
           project: {
             code: `PRJ-${Math.floor(100000 + Math.random() * 900000)}`,
-            title: title || "In mẫu 3D kỹ thuật",
+            title: title || `In 3D ${fileName}`,
           },
           matchResult: {
             invitedCount: 8,
@@ -114,18 +160,26 @@ export default function CreateProjectPage() {
 
   return (
     <div className="bg-slate-950 text-slate-100 min-h-screen py-10">
-      <div className="container mx-auto px-4 max-w-4xl">
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        title="Đăng Ký Miễn Phí Để Phát Đơn Đến 10 Xưởng"
+        description="Đăng ký hoặc đăng nhập để hệ thống chính thức gửi file 3D của bạn đến 10 xưởng lân cận đang rảnh máy và mở kênh Chat trực tiếp."
+        callbackUrl="/customer/projects/new"
+      />
+
+      <div className="container mx-auto px-4 max-w-5xl">
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-10">
           <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-400/20 text-blue-400 text-xs font-bold mb-3">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Tự Động Kết Nối 10 Xưởng Gần Bạn</span>
+            <span>Xem Trước File 3D &amp; Ước Tính Chi Phí Tức Thì</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-            Đăng Yêu Cầu In 3D
+            Tạo Yêu Cầu In 3D &amp; Xem Báo Giá
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-2">
-            Tải lên file 3D (STL/OBJ/3MF), hệ thống sẽ tính khoảng cách và gửi yêu cầu tới 10 xưởng/cá nhân đang rảnh máy lân cận.
+            Tải lên file 3D để xem mô hình 360°, tính toán vật liệu &amp; gửi yêu cầu tới 10 xưởng gần bạn nhất.
           </p>
         </div>
 
@@ -185,97 +239,132 @@ export default function CreateProjectPage() {
           </div>
         )}
 
-        {/* Project Creation Form */}
+        {/* Project Creation Form with 3D Viewer & Cost Estimator */}
         {!result && (
-          <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8 text-xs">
-            {/* Step 1: Upload 3D File */}
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
-                <FileCode className="w-4 h-4 text-blue-400" />
-                <h3 className="font-bold text-sm text-white">
-                  1. Tải Lên File Thiết Kế 3D (STL, OBJ, 3MF, STEP)
-                </h3>
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Top Split: 3D Model WebGL Viewer & Drag Drop */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* 3D Viewer Area */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sm text-white flex items-center">
+                    <Box className="w-4 h-4 mr-1.5 text-blue-400" />
+                    <span>Trình Xem 3D WebGL (Xoay 360° &amp; Đo kích thước)</span>
+                  </h3>
+                  <Badge variant="outline" className="text-slate-400 border-slate-700 text-[10px]">
+                    Chuột trái: Xoay • Cuộn: Zoom
+                  </Badge>
+                </div>
+
+                <ModelViewer3D
+                  fileName={fileName}
+                  fileSizeMb={Number((fileSize / (1024 * 1024)).toFixed(1))}
+                  initialColor="#3b82f6"
+                />
+
+                {/* Upload drag drop picker */}
+                <div className="border-2 border-dashed border-slate-800 hover:border-blue-500/50 rounded-2xl p-4 text-center bg-slate-900/60 transition-colors cursor-pointer relative">
+                  <input
+                    type="file"
+                    accept=".stl,.obj,.3mf,.step,.zip"
+                    onChange={handleSimulatedFileUpload}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <div className="flex items-center justify-center space-x-2 text-xs text-slate-300">
+                    <Upload className="w-4 h-4 text-blue-400" />
+                    <span>Bấm để tải lên file .STL / .OBJ / .3MF của bạn</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="border-2 border-dashed border-slate-700 hover:border-blue-500/60 rounded-3xl p-8 text-center bg-slate-950/60 transition-colors cursor-pointer relative">
-                <input
-                  type="file"
-                  accept=".stl,.obj,.3mf,.step,.zip"
-                  onChange={handleSimulatedFileUpload}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                />
-                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center mx-auto mb-3">
-                  <Upload className="w-6 h-6" />
-                </div>
-                <p className="font-bold text-white text-sm">
-                  Kéo thả file 3D vào đây hoặc bấm để chọn từ máy tính
-                </p>
-                <p className="text-slate-400 text-[11px] mt-1">
-                  Hỗ trợ định dạng .STL, .OBJ, .3MF, .STEP (Dung lượng tối đa 100MB). Cam kết bảo mật NDA.
-                </p>
-
-                {fileUploaded && (
-                  <div className="mt-4 inline-flex items-center space-x-2 bg-blue-500/20 text-blue-300 border border-blue-400/30 px-3.5 py-1.5 rounded-xl font-mono text-xs">
-                    <FileCode className="w-4 h-4 text-blue-400" />
-                    <span>{fileName}</span>
-                    <span className="text-slate-400">({(fileSize / (1024 * 1024)).toFixed(2)} MB)</span>
+              {/* Instant Cost Estimation Box */}
+              <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-2xl flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
+                    <Calculator className="w-4 h-4 text-emerald-400" />
+                    <h3 className="font-bold text-sm text-white">
+                      Ước Tính Chi Phí Sơ Bộ (Tham khảo)
+                    </h3>
                   </div>
-                )}
+
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between text-slate-400">
+                      <span>Vật liệu đã chọn:</span>
+                      <span className="font-bold text-white">{desiredMaterial}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Trọng lượng nhựa ước tính:</span>
+                      <span className="font-bold text-white">{estimation.totalWeight} grams</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Thời gian chạy máy dự kiến:</span>
+                      <span className="font-bold text-white">~ {estimation.machineTimeHours} giờ</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Đơn giá ước tính 1 chiếc:</span>
+                      <span className="font-bold text-white">{formatVND(estimation.unitPrice)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Số lượng:</span>
+                      <span className="font-bold text-white">x {quantity} cái</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-1">
+                    <span className="text-[11px] text-slate-400 block">Tổng chi phí dự kiến:</span>
+                    <div className="text-2xl font-black text-emerald-400">
+                      {formatVND(estimation.totalPrice)}
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      * Giá chính xác sẽ do Xưởng in báo và chốt trong Hợp đồng sau khi bạn gửi file.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 text-[11px] text-slate-400 flex items-center space-x-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Bảo hiểm quỹ Escrow giữ tiền an toàn 100%</span>
+                </div>
               </div>
             </div>
 
-            {/* Step 2: Project Info */}
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
+            {/* Step 2: Detailed Parameters Form */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 text-xs">
+              <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
                 <Layers className="w-4 h-4 text-purple-400" />
                 <h3 className="font-bold text-sm text-white">
-                  2. Thông Tin Dự Án &amp; Yêu Cầu Kỹ Thuật
+                  Thông Số Kỹ Thuật &amp; Địa Chỉ Giao Hàng
                 </h3>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1.5">
-                  Tiêu đề yêu cầu in 3D *
-                </label>
-                <Input
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="VD: In vỏ hộp cảm biến IoT, Tượng nhân vật Anime 20cm..."
-                  className="bg-slate-950 border-slate-800 text-white h-11 text-xs rounded-xl"
-                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-300 mb-1.5">Mục đích in</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full h-11 px-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs"
-                  >
-                    <option value="PROTOTYPE">Tạo mẫu cơ khí / Linh kiện kỹ thuật</option>
-                    <option value="FIGURE_ANIME">Mô hình nhân vật / Figure / Art</option>
-                    <option value="ARCHITECTURE">Kiến trúc &amp; Sa bàn</option>
-                    <option value="ACCESSORIES">Phụ kiện &amp; Cosplay</option>
-                    <option value="OTHER">Mục đích khác</option>
-                  </select>
+                  <label className="block font-bold text-slate-300 mb-1.5">
+                    Tiêu đề dự án *
+                  </label>
+                  <Input
+                    required
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="VD: In vỏ hộp cảm biến IoT, Tượng Figure Anime..."
+                    className="bg-slate-950 border-slate-800 text-white h-11 text-xs rounded-xl"
+                  />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-300 mb-1.5">Vật liệu mong muốn *</label>
+                  <label className="block font-bold text-slate-300 mb-1.5">Vật liệu in mong muốn *</label>
                   <select
                     value={desiredMaterial}
                     onChange={(e) => setDesiredMaterial(e.target.value)}
-                    className="w-full h-11 px-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs"
+                    className="w-full h-11 px-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-semibold"
                   >
-                    <option value="PLA">PLA (Tiêu chuẩn, giá tốt, bề mặt mịn)</option>
+                    <option value="PLA">PLA (Tiêu chuẩn, giá tốt, mịn)</option>
                     <option value="PETG">PETG (Bền cơ tính, chịu ẩm, chịu lực)</option>
-                    <option value="ABS">ABS (Chịu nhiệt cao, bền va đập)</option>
-                    <option value="RESIN_STD">Resin Standard (Siêu nét cho tượng/figure)</option>
+                    <option value="ABS">ABS (Chịu nhiệt, bền va đập)</option>
+                    <option value="RESIN_STD">Resin 8K (Siêu nét cho tượng Anime/Art)</option>
                     <option value="RESIN_TOUGH">Resin Tough (Kỹ thuật chịu lực)</option>
-                    <option value="TPU_FLEX">TPU (Nhựa dẻo đàn hồi)</option>
-                    <option value="CARBON_FIBER">Carbon Fiber (Siêu cứng &amp; nhẹ)</option>
+                    <option value="TPU_FLEX">TPU (Nhựa dẻo đàn hồi cao)</option>
+                    <option value="CARBON_FIBER">Carbon Fiber (Siêu cứng nhẹ)</option>
                   </select>
                 </div>
               </div>
@@ -305,10 +394,10 @@ export default function CreateProjectPage() {
                     onChange={(e) => setLayerHeight(Number(e.target.value))}
                     className="w-full h-11 px-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs"
                   >
-                    <option value={0.05}>0.05 mm (Siêu nét - SLA Resin)</option>
+                    <option value={0.05}>0.05 mm (Siêu nét - Resin)</option>
                     <option value={0.12}>0.12 mm (Chất lượng cao - FDM)</option>
-                    <option value={0.2}>0.20 mm (Tiêu chuẩn cân bằng)</option>
-                    <option value={0.28}>0.28 mm (In nhanh thử nghiệm)</option>
+                    <option value={0.2}>0.20 mm (Tiêu chuẩn)</option>
+                    <option value={0.28}>0.28 mm (In nhanh)</option>
                   </select>
                 </div>
 
@@ -324,30 +413,7 @@ export default function CreateProjectPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-300 mb-1.5">
-                  Mô tả chi tiết / Yêu cầu gia công
-                </label>
-                <textarea
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Ghi chú thêm về dung sai lắp ghép, ren ốc cấy brass heat-set, yêu cầu tháo support hay chà nhám..."
-                  className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Step 3: Location & Budget */}
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
-                <MapPin className="w-4 h-4 text-emerald-400" />
-                <h3 className="font-bold text-sm text-white">
-                  3. Địa Chỉ Nhận Hàng (Để Tìm 10 Xưởng Gần Nhất) &amp; Ngân Sách
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
                 <div>
                   <label className="block font-bold text-slate-300 mb-1.5">Tỉnh / Thành phố *</label>
                   <select
@@ -359,7 +425,6 @@ export default function CreateProjectPage() {
                     <option value="Hà Nội">Hà Nội</option>
                     <option value="Đà Nẵng">Đà Nẵng</option>
                     <option value="Bình Dương">Bình Dương</option>
-                    <option value="Đồng Nai">Đồng Nai</option>
                   </select>
                 </div>
 
@@ -369,75 +434,44 @@ export default function CreateProjectPage() {
                     required
                     value={district}
                     onChange={(e) => setDistrict(e.target.value)}
-                    placeholder="VD: Quận 1, Cầu Giấy, TP. Thủ Đức..."
+                    placeholder="VD: Quận 1, Cầu Giấy..."
                     className="bg-slate-950 border-slate-800 text-white h-11 text-xs rounded-xl"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block font-bold text-slate-300 mb-1.5">Địa chỉ nhận hàng cụ thể</label>
-                <Input
-                  required
-                  value={deliveryAddress}
-                  onChange={(e) => setDeliveryAddress(e.target.value)}
-                  placeholder="Số nhà, tên đường, phường/xã..."
-                  className="bg-slate-950 border-slate-800 text-white h-11 text-xs rounded-xl"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                 <div>
-                  <label className="block font-bold text-slate-300 mb-1.5">
-                    Ngân sách dự kiến (VND)
-                  </label>
+                  <label className="block font-bold text-slate-300 mb-1.5">Ngân sách dự kiến (VND)</label>
                   <Input
                     type="number"
-                    value={targetBudget}
-                    onChange={(e) => setTargetBudget(e.target.value)}
+                    value={customBudget}
+                    onChange={(e) => setCustomBudget(e.target.value)}
                     placeholder="VD: 350000"
                     className="bg-slate-950 border-slate-800 text-white h-11 text-xs rounded-xl"
                   />
                 </div>
-
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1.5">
-                    Thời gian mong muốn hoàn thành
-                  </label>
-                  <select
-                    value={deadlineDays}
-                    onChange={(e) => setDeadlineDays(Number(e.target.value))}
-                    className="w-full h-11 px-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs"
-                  >
-                    <option value={1}>Gấp trong 24 Giờ (+ Phụ phí hỏa tốc)</option>
-                    <option value={2}>Trong vòng 2 Ngày</option>
-                    <option value={3}>Trong vòng 3 Ngày (Tiêu chuẩn)</option>
-                    <option value={5}>Trong vòng 5 Ngày</option>
-                  </select>
-                </div>
               </div>
-            </div>
 
-            {/* Submit Button */}
-            <div className="pt-4 border-t border-slate-800">
-              <Button
-                type="submit"
-                disabled={isPending}
-                className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-black text-sm rounded-2xl h-13 shadow-xl shadow-blue-500/25 flex items-center justify-center space-x-2"
-              >
-                {isPending ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Đang tìm 10 xưởng gần nhất và phát thông báo...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
-                    <span>Đăng Dự Án &amp; Tìm 10 Xưởng Gần Bạn Ngay</span>
-                    <ArrowRight className="w-4 h-4 ml-1" />
-                  </>
-                )}
-              </Button>
+              {/* Submit CTA */}
+              <div className="pt-4 border-t border-slate-800">
+                <Button
+                  type="submit"
+                  disabled={isPending}
+                  className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-black text-sm rounded-2xl h-14 shadow-xl shadow-blue-500/25 flex items-center justify-center space-x-2"
+                >
+                  {isPending ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Đang tìm 10 xưởng gần nhất và phát thông báo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-5 h-5 text-amber-300 fill-amber-300" />
+                      <span>Gửi Yêu Cầu Đến 10 Xưởng Gần Nhất (Miễn Phí)</span>
+                      <ArrowRight className="w-5 h-5 ml-1" />
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </form>
         )}

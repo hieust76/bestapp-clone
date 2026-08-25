@@ -1,5 +1,5 @@
-import Header3D from "@/components/layout/Header3D";
-import Footer3D from "@/components/layout/Footer3D";
+import { Header3D } from "@/components/layout/Header3D";
+import { Footer3D } from "@/components/layout/Footer3D";
 
 export default function PublicLayout({
   children,

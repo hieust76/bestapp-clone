@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ShieldCheck, Printer, Zap, Lock, Award, Heart } from "lucide-react";
+import { Printer, ShieldCheck, Zap, Lock, FileCode, CheckCircle2, Award, Heart } from "lucide-react";
 
-export default function Footer3D() {
+export function Footer3D() {
   return (
     <footer className="bg-slate-950 text-slate-400 text-xs border-t border-slate-800">
       {/* Guarantees */}
